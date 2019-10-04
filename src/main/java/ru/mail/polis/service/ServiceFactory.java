@@ -21,7 +21,7 @@ import java.io.IOException;
 import org.jetbrains.annotations.NotNull;
 
 import ru.mail.polis.dao.DAO;
-import ru.mail.polis.service.senyast4745.ServiceImpl;
+import ru.mail.polis.service.senyast.ServiceImpl;
 
 /**
  * Constructs {@link Service} instances.

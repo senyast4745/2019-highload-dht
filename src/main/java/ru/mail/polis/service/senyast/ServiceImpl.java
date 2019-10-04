@@ -1,11 +1,10 @@
-package ru.mail.polis.service.senyast4745;
+package ru.mail.polis.service.senyast;
 
 import com.google.common.base.Charsets;
 import one.nio.http.*;
 import one.nio.server.AcceptorConfig;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
-import ru.mail.polis.dao.senyast.LSMDao;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
