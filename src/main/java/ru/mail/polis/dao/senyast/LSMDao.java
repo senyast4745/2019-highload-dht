@@ -1,6 +1,8 @@
 package ru.mail.polis.dao.senyast;
 
 import com.google.common.collect.Iterators;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.jetbrains.annotations.NotNull;
 
 import ru.mail.polis.Record;
@@ -9,8 +11,7 @@ import ru.mail.polis.dao.Iters;
 
 import ru.mail.polis.dao.senyast.model.Cell;
 import ru.mail.polis.dao.senyast.model.Generation;
-import ru.mail.polis.dao.senyast.tables.FileTable;
-import ru.mail.polis.dao.senyast.tables.MemTable;
+import ru.mail.polis.dao.senyast.tables.*;
 
 
 import java.io.File;
@@ -22,6 +23,10 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NavigableMap;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 public class LSMDao implements DAO {
@@ -30,44 +35,77 @@ public class LSMDao implements DAO {
     public static final String PREFIX_FILE = "TABLE";
 
     private final File file;
-    private final long flushLimit;
-    private MemTable memTable;
-    private final List<FileTable> fileTables;
-    private long generation;
+    private final MemTablePool memTablePool;
+    private final NavigableMap<Integer, FileTable> fileTables;
+
     private static final int TABLES_LIMIT = 9;
+
+    private ExecutorService executor;
+
+    private Log log = LogFactory.getLog(this.getClass());
 
     /**
      * Create persistence DAO.
+     * <p>
+     * //     * @param file       database location
+     * //     * @param flushLimit when we should write to disk
      *
-     * @param file database location
-     * @param flushLimit when we should write to disk
      * @throws IOException if I/O error
      */
-    public LSMDao(@NotNull final File file, final long flushLimit) throws IOException {
+
+    private class FlusherThread extends Thread {
+
+        public FlusherThread() {
+            super("Flusher thread");
+        }
+
+        @Override
+        public void run() {
+            boolean isPoison = false;
+            while (!isInterrupted() || !isPoison) {
+                TableToFlush tableToFlush = null;
+                try {
+                    tableToFlush = memTablePool.toFlush();
+                    isPoison = tableToFlush.isPoisonPeel();
+                    flush(tableToFlush);
+                    memTablePool.flushed(tableToFlush.getGeneration());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (IOException e) {
+                    log.error("Error while flushing {} in generation " + tableToFlush.getGeneration(), e);
+                }
+
+            }
+        }
+    }
+
+    public LSMDao(@NotNull final File file, final long flushLimit, final int queueCapacity, final int threadCount) throws IOException {
         assert flushLimit >= 0L;
         this.file = file;
-        this.flushLimit = flushLimit;
-        this.fileTables = new ArrayList<>();
-
-        try(Stream<Path> walk = Files.walk(file.toPath(), 1)) {
+        this.fileTables = new ConcurrentSkipListMap<>();
+        AtomicInteger generation = new AtomicInteger();
+        try (Stream<Path> walk = Files.walk(file.toPath(), 1)) {
             walk.filter(path -> {
                 final String filename = path.getFileName().toString();
                 return filename.endsWith(SUFFIX_DAT) && filename.startsWith(PREFIX_FILE);
             })
                     .forEach(path -> {
                         try {
-                            final long currGeneration = Generation.fromPath(path);
-                            if (currGeneration > generation){
-                                generation = currGeneration;
-                            }
-                            fileTables.add(new FileTable(path.toFile(), currGeneration));
+                            generation.set(Generation.fromPath(path));
+
+                            fileTables.put(generation.get(), new FileTable(path.toFile(), generation.get()));
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
                     });
         }
-        generation++;
-        memTable = new MemTable(generation);
+        memTablePool = new MemTablePool(flushLimit, generation.get(), queueCapacity);
+
+        executor = Executors.newFixedThreadPool(threadCount);
+        for (int i = 0; i < threadCount; i++) {
+            executor.execute(new FlusherThread());
+        }
+
     }
 
     @NotNull
@@ -79,13 +117,13 @@ public class LSMDao implements DAO {
         });
     }
 
-    private Iterator<Cell> aliveCells(@NotNull final ByteBuffer from){
+    private Iterator<Cell> aliveCells(@NotNull final ByteBuffer from) {
         final List<Iterator<Cell>> iterators = new ArrayList<>();
-        for (final FileTable ssTable : this.fileTables) {
+        for (final FileTable ssTable : this.fileTables.values()) {
             iterators.add(ssTable.iterator(from));
         }
 
-        iterators.add(memTable.iterator(from));
+        iterators.add(memTablePool.iterator(from));
         //noinspection UnstableApiUsage
         final Iterator<Cell> cellIterator = Iters.collapseEquals(
                 Iterators.mergeSorted(iterators, Cell.COMPARATOR),
@@ -102,62 +140,67 @@ public class LSMDao implements DAO {
 
     @Override
     public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) throws IOException {
-        memTable.upsert(key, value);
-        if (memTable.sizeInBytes() >= flushLimit) {
-            flush();
-        }
+        memTablePool.upsert(key, value);
     }
 
     @Override
     public void remove(@NotNull final ByteBuffer key) throws IOException {
-        memTable.remove(key);
-        if (memTable.sizeInBytes() >= flushLimit) {
-            flush();
+        memTablePool.remove(key);
+    }
+
+    private void flush(final TableToFlush tableToFlush) throws IOException {
+        Iterator<Cell> memIterator = memTablePool.iterator(ByteBuffer.allocate(0));
+
+
+        if (memIterator.hasNext()) {
+            if (fileTables.size() > TABLES_LIMIT) {
+                compact(tableToFlush.getGeneration());
+                return;
+            }
+            final int generation = tableToFlush.getGeneration();
+            final String tempFilename = PREFIX_FILE + generation + SUFFIX_TMP;
+            final String filename = PREFIX_FILE + generation + SUFFIX_DAT;
+
+            final File tmp = new File(file, tempFilename);
+            FileTable.writeToFile(memIterator, tmp);
+            final File dest = new File(file, filename);
+            Files.move(tmp.toPath(), dest.toPath(), StandardCopyOption.ATOMIC_MOVE);
+            fileTables.put(generation, new FileTable(dest, generation));
         }
     }
 
     @Override
-    public void close() throws IOException {
-        if (memTable.sizeInBytes() > 0) {
-            flush();
-        }
-    }
-
-    private void flush() throws IOException {
-        if (fileTables.size() > TABLES_LIMIT){
-            compact();
-            return;
-        }
-
+    public void compact(final int generation) throws IOException {
         final String tempFilename = PREFIX_FILE + generation + SUFFIX_TMP;
         final String filename = PREFIX_FILE + generation + SUFFIX_DAT;
-
-        final File tmp = new File(file, tempFilename);
-        FileTable.writeToFile(memTable.iterator(ByteBuffer.allocate(0)), tmp);
-        final File dest = new File(file, filename);
-        Files.move(tmp.toPath(), dest.toPath(), StandardCopyOption.ATOMIC_MOVE);
-        generation++;
-        memTable = new MemTable(generation);
-    }
-
-    @Override
-    public void compact() throws IOException {
-        final String tempFilename = PREFIX_FILE + generation + SUFFIX_TMP;
-        final String filename = PREFIX_FILE + generation + SUFFIX_DAT;
-        final File tmp = new File(file,  tempFilename);
 
         final Iterator<Cell> cellIterator = aliveCells(ByteBuffer.allocate(0));
+
+
+        final File tmp = new File(file, tempFilename);
+
         FileTable.writeToFile(cellIterator, tmp);
         final File dest = new File(file, filename);
         Files.move(tmp.toPath(), dest.toPath(), StandardCopyOption.ATOMIC_MOVE);
 
-        for (final FileTable fileTable: fileTables){
+        for (final FileTable fileTable : fileTables.values()) {
             Files.delete(fileTable.getFile().toPath());
         }
 
         fileTables.clear();
-        fileTables.add(new FileTable(dest, generation));
-        generation++;
-        memTable = new MemTable(generation);
+        fileTables.put(generation ,new FileTable(dest, generation));
     }
+
+
+    @Override
+    public void close() throws IOException {
+        memTablePool.close();
+        try {
+            executor.awaitTermination(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        executor.shutdownNow();
+    }
+
 }

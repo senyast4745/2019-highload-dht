@@ -6,19 +6,23 @@ import ru.mail.polis.dao.senyast.model.Cell;
 import ru.mail.polis.dao.senyast.model.Value;
 
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicLong;
 
+@ThreadSafe
 public class MemTable implements Table {
     private final NavigableMap<ByteBuffer, Value> map;
-    private long tableSize;
+    private AtomicLong tableSize = new AtomicLong();
     private final long generation;
 
     public MemTable(final long generation) {
         this.generation = generation;
-        this.map = new TreeMap<>();
+        this.map = new ConcurrentSkipListMap<>();
     }
 
     /**
@@ -40,11 +44,11 @@ public class MemTable implements Table {
     public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) {
         final Value prev = map.put(key, Value.of(value));
         if (prev == null) {
-            tableSize = tableSize + key.remaining() + value.remaining();
+            tableSize.addAndGet(key.remaining() + value.remaining());
         } else if (prev.isTombstone()) {
-            tableSize = tableSize + value.remaining();
+            tableSize.addAndGet(value.remaining());
         } else {
-            tableSize = tableSize + value.remaining() - prev.getData().remaining();
+            tableSize.addAndGet(value.remaining() - prev.getData().remaining());
         }
     }
 
@@ -52,14 +56,14 @@ public class MemTable implements Table {
     public void remove(@NotNull final ByteBuffer key) {
         final Value prev = map.put(key, Value.tombstone());
         if (prev == null) {
-            tableSize = tableSize + key.remaining();
+            tableSize.addAndGet(key.remaining());
         } else if (!prev.isTombstone()) {
-            tableSize = tableSize - prev.getData().remaining();
+            tableSize.addAndGet(-prev.getData().remaining());
         }
     }
 
     @Override
     public long sizeInBytes() {
-        return tableSize;
+        return tableSize.get();
     }
 }
