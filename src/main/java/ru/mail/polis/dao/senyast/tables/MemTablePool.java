@@ -29,6 +29,7 @@ public class MemTablePool implements Table, Closeable {
     private BlockingQueue<TableToFlush> flushQueue;
 
     private final long memFlushThreshHold;
+
     private int generation;
 
     private AtomicBoolean stop = new AtomicBoolean(false);
@@ -139,9 +140,14 @@ public class MemTablePool implements Table, Closeable {
         }
     }
 
+    public synchronized int getGeneration() {
+        return generation;
+    }
+
     @Override
     public void close() throws IOException {
         if (!stop.compareAndSet(false, true)) {
+            System.out.println("Stopped");
             return;
         }
         lock.writeLock().lock();

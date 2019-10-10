@@ -25,6 +25,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
  * Storage interface.
@@ -71,7 +72,7 @@ public interface DAO extends Closeable {
      * @throws NoSuchElementLite if no such record
      */
     @NotNull
-    default ByteBuffer get(@NotNull ByteBuffer key) throws IOException, NoSuchElementLite {
+    default ByteBuffer get(@NotNull ByteBuffer key) throws IOException, NoSuchElementException {
         final Iterator<Record> iter = iterator(key);
         if (!iter.hasNext()) {
             throw new NoSuchElementLite("Not found");
@@ -100,7 +101,7 @@ public interface DAO extends Closeable {
     /**
      * Performs compaction.
      */
-    default void compact(final int generation) throws IOException {
+    default void compact() throws IOException {
         // Implement me when you get to stage 3
     }
 }
