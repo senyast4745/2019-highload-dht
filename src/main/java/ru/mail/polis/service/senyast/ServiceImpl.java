@@ -26,6 +26,8 @@ public class ServiceImpl extends HttpServer implements Service {
         acceptor.port = port;
         HttpServerConfig config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{acceptor};
+        config.minWorkers = 4;
+        config.maxWorkers = 8;
         return config;
     }
 

@@ -118,30 +118,29 @@ public class MemTablePool implements Table, Closeable {
 
     private void syncAddToFlush() {
         if (current.sizeInBytes() > memFlushThreshHold) {
-            lock.writeLock().unlock();
-            if (current.sizeInBytes() > memFlushThreshHold) {
-                TableToFlush toFlush;
-                try {
-                    toFlush = new TableToFlush(current, generation);
-                } finally {
-                    lock.writeLock().unlock();
-                }
+            lock.writeLock().lock();
+            TableToFlush toFlush = null;
+            try {
+                if (current.sizeInBytes() > memFlushThreshHold) {
 
+                    toFlush = new TableToFlush(current, generation);
+                    generation++;
+                    current = new MemTable(generation);
+                }
+            } finally {
+                lock.writeLock().unlock();
+            }
+            if (toFlush != null) {
                 try {
                     flushQueue.put(toFlush);
                 } catch (InterruptedException e) {
                     System.out.println("Thread interrupted");
                     Thread.currentThread().interrupt();
                 }
-                generation++;
-                current = new MemTable(generation);
             }
 
-        }
-    }
 
-    public synchronized int getGeneration() {
-        return generation;
+        }
     }
 
     @Override
