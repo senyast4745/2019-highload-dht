@@ -57,6 +57,6 @@ public final class DAOFactory {
         }
         int cores = Runtime.getRuntime().availableProcessors();
         System.out.println("Cores " + cores);
-        return new LSMDao(data,MAX_HEAP/60, cores, cores/2);
+        return new LSMDao(data,MAX_HEAP/60, cores, 60);
     }
 }

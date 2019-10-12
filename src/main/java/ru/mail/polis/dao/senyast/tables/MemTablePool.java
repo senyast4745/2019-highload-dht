@@ -6,8 +6,11 @@ import ru.mail.polis.dao.Iters;
 import ru.mail.polis.dao.senyast.model.Cell;
 
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -28,6 +31,8 @@ public class MemTablePool implements Table, Closeable {
     private volatile MemTable current;
     private NavigableMap<Integer, MemTable> pendingFlush;
     private BlockingQueue<TableToFlush> flushQueue;
+
+    private final AtomicBoolean compacting = new AtomicBoolean(false);
 
     private final long memFlushThreshHold;
 
@@ -59,8 +64,33 @@ public class MemTablePool implements Table, Closeable {
     }
 
     @Override
-    public Iterator<Cell> iterator(@NotNull ByteBuffer from) {
+    public Iterator<Cell> iterator(@NotNull ByteBuffer from) throws IOException {
+
         lock.readLock().lock();
+        final List<Iterator<Cell>> list;
+
+        try {
+            list = new ArrayList<>(pendingFlush.size() + 1);
+            for (final Table fileChannelTable : pendingFlush.values()) {
+                list.add(fileChannelTable.iterator(from));
+            }
+            final Iterator<Cell> memoryIterator = current.iterator(from);
+            list.add(memoryIterator);
+        } finally {
+            lock.readLock().unlock();
+        }
+
+        final Iterator<Cell> iterator = Iters.collapseEquals(Iterators.mergeSorted(list, Cell.COMPARATOR),
+                Cell::getKey);
+
+        Iterator<Cell> cellFull = Iterators.filter(
+                iterator,
+                cell -> {
+                    assert cell != null;
+                    return !cell.getValue().isTombstone();
+                });
+        return cellFull;
+       /* lock.readLock().lock();
         final Iterator<Cell> cellIterator;
         final List<Iterator<Cell>> iterators;
         try {
@@ -84,7 +114,7 @@ public class MemTablePool implements Table, Closeable {
                     assert cell != null;
                     return !cell.getValue().isTombstone();
                 }
-        );
+        );*/
     }
 
     @Override
@@ -117,7 +147,7 @@ public class MemTablePool implements Table, Closeable {
             lock.writeLock().unlock();
         }
         if (generation > lastFlushedGeneration.get()) {
-            lastFlushedGeneration.compareAndSet(generation - 1, generation);
+            lastFlushedGeneration.set(generation);
         }
 
     }
@@ -134,14 +164,17 @@ public class MemTablePool implements Table, Closeable {
                 if (current.sizeInBytes() > memFlushThreshHold) {
 
                     toFlush = new TableToFlush(current, generation);
+                    pendingFlush.put(generation, current);
                     generation++;
                     current = new MemTable(generation);
+
                 }
             } finally {
                 lock.writeLock().unlock();
             }
             if (toFlush != null) {
                 try {
+
                     flushQueue.put(toFlush);
                 } catch (InterruptedException e) {
                     System.out.println("Thread interrupted");
@@ -153,6 +186,7 @@ public class MemTablePool implements Table, Closeable {
         }
     }
 
+
     @Override
     public void close() throws IOException {
         if (!stop.compareAndSet(false, true)) {
@@ -162,11 +196,13 @@ public class MemTablePool implements Table, Closeable {
         lock.writeLock().lock();
         final TableToFlush toFlush;
         try {
+            pendingFlush.put(generation, current);
             toFlush = new TableToFlush(current, generation, true);
         } finally {
             lock.writeLock().unlock();
         }
         try {
+
             flushQueue.put(toFlush);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

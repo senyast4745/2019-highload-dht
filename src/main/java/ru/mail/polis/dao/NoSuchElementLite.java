@@ -1,4 +1,4 @@
-package ru.mail.polis.dao.senyast;
+package ru.mail.polis.dao;
 
 import java.util.NoSuchElementException;
 

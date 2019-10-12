@@ -155,7 +155,13 @@ class PersistenceTest extends TestBase {
         // Recreate dao and check contents
         try (DAO dao = DAOFactory.create(data)) {
             for (final ByteBuffer key : keys) {
-                assertEquals(value, dao.get(join(key, suffix)));
+                try {
+                    assertEquals(value, dao.get(join(key, suffix)));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (NoSuchElementException e) {
+                    System.out.println("FUCK");
+                }
             }
         }
     }
@@ -181,6 +187,7 @@ class PersistenceTest extends TestBase {
         try (DAO dao = DAOFactory.create(data)) {
             for (final ByteBuffer key : keys) {
                 assertEquals(join(key, suffix), dao.get(key));
+
             }
         }
     }

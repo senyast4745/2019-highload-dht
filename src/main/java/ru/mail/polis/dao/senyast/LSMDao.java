@@ -38,7 +38,7 @@ public class LSMDao implements DAO {
     private final MemTablePool memTablePool;
     private final NavigableMap<Integer, FileTable> fileTables;
 
-    private static final int TABLES_LIMIT = 11;
+    private static final int TABLES_LIMIT = 1000;
 
 //    private ExecutorService executor;
 
@@ -95,14 +95,14 @@ public class LSMDao implements DAO {
 
     @NotNull
     @Override
-    public Iterator<Record> iterator(@NotNull final ByteBuffer from) {
+    public Iterator<Record> iterator(@NotNull final ByteBuffer from) throws IOException {
         return Iterators.transform(aliveCells(from), cell -> {
             assert cell != null;
             return Record.of(cell.getKey(), cell.getValue().getData());
         });
     }
 
-    private Iterator<Cell> aliveCells(@NotNull final ByteBuffer from) {
+    private Iterator<Cell> aliveCells(@NotNull final ByteBuffer from) throws IOException {
         final List<Iterator<Cell>> iterators = new ArrayList<>();
         for (final FileTable ssTable : this.fileTables.values()) {
             iterators.add(ssTable.iterator(from));
@@ -137,23 +137,23 @@ public class LSMDao implements DAO {
         Iterator<Cell> memIterator = memTablePool.iterator(ByteBuffer.allocate(0));
 //
 //
-//        if (memIterator.hasNext()) {
-        System.out.println("Flushing generation " + tableToFlush.getGeneration());
-        if (fileTables.size() > TABLES_LIMIT) {
-            generationToCompact.set(tableToFlush.getGeneration());
-            compact();
-            return;
-        }
-        final int generation = tableToFlush.getGeneration();
-        final String tempFilename = PREFIX_FILE + generation + SUFFIX_TMP;
-        final String filename = PREFIX_FILE + generation + SUFFIX_DAT;
+        if (memIterator.hasNext()) {
+            System.out.println("Flushing generation " + tableToFlush.getGeneration());
+            if (fileTables.size() > TABLES_LIMIT) {
+                generationToCompact.set(tableToFlush.getGeneration());
+                compact();
+                return;
+            }
+            final int generation = tableToFlush.getGeneration();
+            final String tempFilename = PREFIX_FILE + generation + SUFFIX_TMP;
+            final String filename = PREFIX_FILE + generation + SUFFIX_DAT;
 
-        final File tmp = new File(file, tempFilename);
-        FileTable.writeToFile(memIterator, tmp);
-        final File dest = new File(file, filename);
-        Files.move(tmp.toPath(), dest.toPath(), StandardCopyOption.ATOMIC_MOVE);
-        fileTables.put(generation, new FileTable(dest, generation));
-//        }
+            final File tmp = new File(file, tempFilename);
+            FileTable.writeToFile(memIterator, tmp);
+            final File dest = new File(file, filename);
+            Files.move(tmp.toPath(), dest.toPath(), StandardCopyOption.ATOMIC_MOVE);
+            fileTables.put(generation, new FileTable(dest, generation));
+        }
     }
 
     @Override

@@ -39,7 +39,7 @@ public final class Iters {
 
         @Override
         public Object next() {
-            throw new NoSuchElementException("Next on empty iterator");
+            throw new NoSuchElementLite("Next on empty iterator");
         }
     };
 
