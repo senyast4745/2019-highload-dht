@@ -158,8 +158,8 @@ public class LSMDao implements DAO {
 
     @Override
     public void compact() throws IOException {
-        int generation = generationToCompact.get();
-        System.out.println("Compact generation " + generation);
+        int generation = memTablePool.getLastFlushedGeneration().get();
+        System.out.println("Compact generation " + generation + " by thread " + Thread.currentThread().getName());
 
         final String tempFilename = PREFIX_FILE + generation + SUFFIX_TMP;
         final String filename = PREFIX_FILE + generation + SUFFIX_DAT;

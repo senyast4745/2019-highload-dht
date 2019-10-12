@@ -16,6 +16,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -31,6 +32,8 @@ public class MemTablePool implements Table, Closeable {
     private final long memFlushThreshHold;
 
     private int generation;
+
+    private AtomicInteger lastFlushedGeneration = new AtomicInteger(0);
 
     private AtomicBoolean stop = new AtomicBoolean(false);
 
@@ -113,7 +116,14 @@ public class MemTablePool implements Table, Closeable {
         } finally {
             lock.writeLock().unlock();
         }
+        if (generation > lastFlushedGeneration.get()) {
+            lastFlushedGeneration.compareAndSet(generation - 1, generation);
+        }
 
+    }
+
+    public AtomicInteger getLastFlushedGeneration() {
+        return lastFlushedGeneration;
     }
 
     private void syncAddToFlush() {
