@@ -26,35 +26,46 @@ public class ServiceImpl extends HttpServer implements Service {
     private final Executor executors;
     private static Logger log = LoggerFactory.getLogger(ServiceImpl.class);
 
-    public ServiceImpl(int port, @NotNull DAO dao, @NotNull Executor executor) throws IOException {
+    /**
+     * @param port     HttpServer Port
+     * @param dao      Implementation of DAO
+     * @param executor Thread executor
+     * @throws IOException if server can not start
+     */
+    public ServiceImpl(final int port, @NotNull final DAO dao, @NotNull final Executor executor) throws IOException {
         super(getServerConfig(port));
         this.dao = dao;
         this.executors = executor;
     }
 
-    private static HttpServerConfig getServerConfig(int port) {
+    private static HttpServerConfig getServerConfig(final int port) {
         AcceptorConfig acceptor = new AcceptorConfig();
         acceptor.port = port;
         acceptor.reusePort = true;
         acceptor.deferAccept = true;
 
-        HttpServerConfig config = new HttpServerConfig();
+        final HttpServerConfig config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{acceptor};
         config.minWorkers = 4;
         config.maxWorkers = 8;
         return config;
     }
 
+    /**
+     * @param request Request to Server
+     * @param id      Key
+     * @param session Http Session to response
+     */
     @SuppressWarnings("unused")
     @Path("/v0/entity")
     public void daoMethods(@NotNull final Request request,
                            @Param("id") final String id,
-                           HttpSession session) {
+                           final HttpSession session) {
         if (id == null || id.isEmpty()) {
             sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
             return;
         }
-        ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
+        final ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
         try {
             switch (request.getMethod()) {
                 case Request.METHOD_GET:
@@ -78,12 +89,12 @@ public class ServiceImpl extends HttpServer implements Service {
 
     @SuppressWarnings("unused")
     @Path("/v0/status")
-    public void status(HttpSession session) {
+    public void status(final HttpSession session) {
         sendResponse(session, new Response(Response.OK, Response.EMPTY));
     }
 
     @Path("/v0/entities")
-    public void entities(Request request, HttpSession session, @Param("start") String start,
+    public void entities(final Request request, HttpSession session, @Param("start") String start,
                          @Param("end") String end) {
         if (start == null || start.isEmpty()) {
             sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
@@ -103,25 +114,25 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     @Override
-    public HttpSession createSession(Socket socket) {
+    public HttpSession createSession(final Socket socket) {
         return new StorageSession(socket, this);
     }
 
     @Override
-    public void handleDefault(Request request, HttpSession session) throws IOException {
+    public void handleDefault(final Request request, final HttpSession session) throws IOException {
         Response response = new Response(Response.BAD_REQUEST, Response.EMPTY);
         session.sendResponse(response);
     }
 
-    private Response getMethod(ByteBuffer key) throws IOException {
-        ByteBuffer value = dao.get(key);
-        ByteBuffer duplicate = value.duplicate();
+    private Response getMethod(final ByteBuffer key) throws IOException {
+        final ByteBuffer value = dao.get(key);
+        final ByteBuffer duplicate = value.duplicate();
         byte[] body = new byte[duplicate.remaining()];
         duplicate.get(body);
         return new Response(Response.OK, body);
     }
 
-    private Response putMethod(ByteBuffer key, Request request) throws IOException {
+    private Response putMethod(final ByteBuffer key, final Request request) throws IOException {
         dao.upsert(key, ByteBuffer.wrap(request.getBody()));
         return new Response(Response.CREATED, Response.EMPTY);
     }
