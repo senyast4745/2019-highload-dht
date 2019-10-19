@@ -22,8 +22,6 @@ import ru.mail.polis.dao.senyast.LSMDao;
 import java.io.File;
 import java.io.IOException;
 
-import org.jetbrains.annotations.NotNull;
-
 /**
  * Custom {@link DAO} factory.
  *
@@ -57,6 +55,6 @@ public final class DAOFactory {
         }
         int cores = Runtime.getRuntime().availableProcessors();
         System.out.println("Cores " + cores);
-        return new LSMDao(data,MAX_HEAP/60, cores, 60);
+        return new LSMDao(data, MAX_HEAP / 60, cores);
     }
 }

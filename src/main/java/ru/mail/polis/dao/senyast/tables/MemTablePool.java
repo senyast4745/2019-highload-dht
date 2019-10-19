@@ -6,11 +6,8 @@ import ru.mail.polis.dao.Iters;
 import ru.mail.polis.dao.senyast.model.Cell;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -21,7 +18,6 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class MemTablePool implements Table, Closeable {
@@ -31,8 +27,6 @@ public class MemTablePool implements Table, Closeable {
     private volatile MemTable current;
     private NavigableMap<Integer, MemTable> pendingFlush;
     private BlockingQueue<TableToFlush> flushQueue;
-
-    private final AtomicBoolean compacting = new AtomicBoolean(false);
 
     private final long memFlushThreshHold;
 
@@ -48,7 +42,6 @@ public class MemTablePool implements Table, Closeable {
         this.pendingFlush = new ConcurrentSkipListMap<>();
         this.current = new MemTable(startGeneration);
         this.flushQueue = new ArrayBlockingQueue<>(queueCapacity);
-
     }
 
     @Override
@@ -80,41 +73,9 @@ public class MemTablePool implements Table, Closeable {
             lock.readLock().unlock();
         }
 
-        final Iterator<Cell> iterator = Iters.collapseEquals(Iterators.mergeSorted(list, Cell.COMPARATOR),
-                Cell::getKey);
-
-        Iterator<Cell> cellFull = Iterators.filter(
-                iterator,
-                cell -> {
-                    assert cell != null;
-                    return !cell.getValue().isTombstone();
-                });
-        return cellFull;
-       /* lock.readLock().lock();
-        final Iterator<Cell> cellIterator;
-        final List<Iterator<Cell>> iterators;
-        try {
-            iterators = new ArrayList<>(pendingFlush.size() + 1);
-            for (final MemTable table : this.pendingFlush.values()) {
-                iterators.add(table.iterator(from));
-            }
-
-            iterators.add(current.iterator(from));
-        } finally {
-            lock.readLock().unlock();
-        }
         //noinspection UnstableApiUsage
-        cellIterator = Iters.collapseEquals(
-                Iterators.mergeSorted(iterators, Cell.COMPARATOR),
-                Cell::getKey
-        );
-
-        return Iterators.filter(
-                cellIterator, cell -> {
-                    assert cell != null;
-                    return !cell.getValue().isTombstone();
-                }
-        );*/
+        return Iters.collapseEquals(Iterators.mergeSorted(list, Cell.COMPARATOR),
+                Cell::getKey);
     }
 
     @Override
@@ -139,6 +100,12 @@ public class MemTablePool implements Table, Closeable {
         return flushQueue.take();
     }
 
+    private void updateCurrentFlushGeneration(int generation) {
+        if (generation > lastFlushedGeneration.get()) {
+            lastFlushedGeneration.set(generation);
+        }
+    }
+
     public void flushed(final int generation) {
         lock.writeLock().lock();
         try {
@@ -146,10 +113,8 @@ public class MemTablePool implements Table, Closeable {
         } finally {
             lock.writeLock().unlock();
         }
-        if (generation > lastFlushedGeneration.get()) {
-            lastFlushedGeneration.set(generation);
-        }
 
+        updateCurrentFlushGeneration(generation);
     }
 
     public AtomicInteger getLastFlushedGeneration() {
@@ -162,12 +127,10 @@ public class MemTablePool implements Table, Closeable {
             TableToFlush toFlush = null;
             try {
                 if (current.sizeInBytes() > memFlushThreshHold) {
-
                     toFlush = new TableToFlush(current, generation);
                     pendingFlush.put(generation, current);
                     generation++;
                     current = new MemTable(generation);
-
                 }
             } finally {
                 lock.writeLock().unlock();
@@ -181,14 +144,11 @@ public class MemTablePool implements Table, Closeable {
                     Thread.currentThread().interrupt();
                 }
             }
-
-
         }
     }
 
-
     @Override
-    public void close() throws IOException {
+    public void close() {
         if (!stop.compareAndSet(false, true)) {
             System.out.println("Stopped");
             return;
@@ -202,11 +162,9 @@ public class MemTablePool implements Table, Closeable {
             lock.writeLock().unlock();
         }
         try {
-
             flushQueue.put(toFlush);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-
     }
 }

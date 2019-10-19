@@ -4,15 +4,14 @@ import com.google.common.collect.Iterators;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jetbrains.annotations.NotNull;
-
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.Iters;
-
 import ru.mail.polis.dao.senyast.model.Cell;
 import ru.mail.polis.dao.senyast.model.Generation;
-import ru.mail.polis.dao.senyast.tables.*;
-
+import ru.mail.polis.dao.senyast.tables.FileTable;
+import ru.mail.polis.dao.senyast.tables.MemTablePool;
+import ru.mail.polis.dao.senyast.tables.TableToFlush;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,9 +23,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 public class LSMDao implements DAO {
@@ -38,7 +36,7 @@ public class LSMDao implements DAO {
     private final MemTablePool memTablePool;
     private final NavigableMap<Integer, FileTable> fileTables;
 
-    private static final int TABLES_LIMIT = 1000;
+    private static final int TABLES_LIMIT = 10;
 
 //    private ExecutorService executor;
 
@@ -60,7 +58,7 @@ public class LSMDao implements DAO {
      * @throws IOException if I/O error
      */
 
-    public LSMDao(@NotNull final File file, final long flushLimit, final int queueCapacity, final int threadCount) throws IOException {
+    public LSMDao(@NotNull final File file, final long flushLimit, final int queueCapacity) throws IOException {
         assert flushLimit >= 0L;
         this.file = file;
         this.fileTables = new ConcurrentSkipListMap<>();
@@ -102,12 +100,22 @@ public class LSMDao implements DAO {
         });
     }
 
-    private Iterator<Cell> aliveCells(@NotNull final ByteBuffer from) throws IOException {
+    private Iterator<Cell> fileTablesIterator(@NotNull final ByteBuffer from) {
         final List<Iterator<Cell>> iterators = new ArrayList<>();
         for (final FileTable ssTable : this.fileTables.values()) {
             iterators.add(ssTable.iterator(from));
         }
 
+        //noinspection UnstableApiUsage
+        return Iters.collapseEquals(
+                Iterators.mergeSorted(iterators, Cell.COMPARATOR),
+                Cell::getKey
+        );
+    }
+
+    private Iterator<Cell> aliveCells(@NotNull final ByteBuffer from) throws IOException {
+        final List<Iterator<Cell>> iterators = new ArrayList<>();
+        iterators.add(fileTablesIterator(from));
         iterators.add(memTablePool.iterator(from));
         //noinspection UnstableApiUsage
         final Iterator<Cell> cellIterator = Iters.collapseEquals(
@@ -124,26 +132,19 @@ public class LSMDao implements DAO {
     }
 
     @Override
-    public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) throws IOException {
+    public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) {
         memTablePool.upsert(key, value);
     }
 
     @Override
-    public void remove(@NotNull final ByteBuffer key) throws IOException {
+    public void remove(@NotNull final ByteBuffer key) {
         memTablePool.remove(key);
     }
 
     private void flush(final TableToFlush tableToFlush) throws IOException {
-        Iterator<Cell> memIterator = memTablePool.iterator(ByteBuffer.allocate(0));
-//
-//
+        Iterator<Cell> memIterator = tableToFlush.getTable().iterator(ByteBuffer.allocate(0));
+
         if (memIterator.hasNext()) {
-            System.out.println("Flushing generation " + tableToFlush.getGeneration());
-            if (fileTables.size() > TABLES_LIMIT) {
-                generationToCompact.set(tableToFlush.getGeneration());
-                compact();
-                return;
-            }
             final int generation = tableToFlush.getGeneration();
             final String tempFilename = PREFIX_FILE + generation + SUFFIX_TMP;
             final String filename = PREFIX_FILE + generation + SUFFIX_DAT;
@@ -153,6 +154,14 @@ public class LSMDao implements DAO {
             final File dest = new File(file, filename);
             Files.move(tmp.toPath(), dest.toPath(), StandardCopyOption.ATOMIC_MOVE);
             fileTables.put(generation, new FileTable(dest, generation));
+            memTablePool.flushed(generation);
+
+            System.out.println("Flushing generation " + tableToFlush.getGeneration());
+        }
+
+        if (fileTables.size() > TABLES_LIMIT) {
+            generationToCompact.set(tableToFlush.getGeneration());
+            compact();
         }
     }
 
@@ -164,14 +173,14 @@ public class LSMDao implements DAO {
         final String tempFilename = PREFIX_FILE + generation + SUFFIX_TMP;
         final String filename = PREFIX_FILE + generation + SUFFIX_DAT;
 
-        final Iterator<Cell> cellIterator = aliveCells(ByteBuffer.allocate(0));
-
+        final Iterator<Cell> cellIterator = fileTablesIterator(ByteBuffer.allocate(0));
 
         final File tmp = new File(file, tempFilename);
-
         FileTable.writeToFile(cellIterator, tmp);
         final File dest = new File(file, filename);
         Files.move(tmp.toPath(), dest.toPath(), StandardCopyOption.ATOMIC_MOVE);
+
+        fileTables.remove(generation);
 
         for (final FileTable fileTable : fileTables.values()) {
             Files.delete(fileTable.getFile().toPath());
@@ -179,11 +188,12 @@ public class LSMDao implements DAO {
 
         fileTables.clear();
         fileTables.put(generation, new FileTable(dest, generation));
+        memTablePool.flushed(generation);
     }
 
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         memTablePool.close();
         try {
             flusherThread.join();
@@ -211,7 +221,6 @@ public class LSMDao implements DAO {
                     tableToFlush = memTablePool.toFlush();
                     isPoison = tableToFlush.isPoisonPeel();
                     flush(tableToFlush);
-                    memTablePool.flushed(tableToFlush.getGeneration());
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (IOException e) {
