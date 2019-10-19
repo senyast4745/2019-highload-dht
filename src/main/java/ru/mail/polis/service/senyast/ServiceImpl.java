@@ -1,7 +1,13 @@
 package ru.mail.polis.service.senyast;
 
 import com.google.common.base.Charsets;
-import one.nio.http.*;
+import one.nio.http.HttpServer;
+import one.nio.http.Path;
+import one.nio.http.Request;
+import one.nio.http.Response;
+import one.nio.http.Param;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.HttpSession;
 import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
 import org.jetbrains.annotations.NotNull;
@@ -114,15 +120,13 @@ public class ServiceImpl extends HttpServer implements Service {
     @SuppressWarnings("unused")
     @Path("/v0/entities")
     public void entities(final Request request, final HttpSession session, @Param("start") final String start,
-                         @Param("end") String end) {
-        String endOfBuffer;
+                         @Param("end") final String end) {
+        String endOfBuffer = null;
         if (start == null || start.isEmpty()) {
             sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
             return;
         }
-        if (end != null && end.isEmpty()) {
-            endOfBuffer = null;
-        } else {
+        if (!(end != null && end.isEmpty())) {
             endOfBuffer = end;
         }
 
