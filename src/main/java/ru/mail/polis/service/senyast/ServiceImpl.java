@@ -146,7 +146,7 @@ public class ServiceImpl extends HttpServer implements Service {
             try {
                 session.sendError(Response.INTERNAL_ERROR, "Error while send response");
             } catch (IOException ex) {
-                log.error("Error while send error");
+                log.error("Error while send response error");
             }
         }
     }
