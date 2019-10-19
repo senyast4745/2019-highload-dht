@@ -57,7 +57,7 @@ public class LSMDao implements DAO {
         assert flushLimit >= 0L;
         this.file = file;
         this.fileTables = new ConcurrentSkipListMap<>();
-        AtomicInteger generation = new AtomicInteger(0);
+        final AtomicInteger generation = new AtomicInteger(0);
         try (Stream<Path> walk = Files.walk(file.toPath(), 1)) {
             walk.filter(path -> {
                 final String filename = path.getFileName().toString();
