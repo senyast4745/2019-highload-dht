@@ -121,18 +121,14 @@ public class ServiceImpl extends HttpServer implements Service {
     @Path("/v0/entities")
     public void entities(final Request request, final HttpSession session, @Param("start") final String start,
                          @Param("end") final String end) {
-        String endOfBuffer = end;
         if (start == null || start.isEmpty()) {
             sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
             return;
         }
-        if (end != null && end.isEmpty()) {
-            endOfBuffer = null;
-        }
 
         try {
             final Iterator<Record> records = dao.range(ByteBuffer.wrap(start.getBytes(UTF_8)),
-                    endOfBuffer == null ? null : ByteBuffer.wrap(end.getBytes(UTF_8)));
+                    end == null || end.isEmpty() ? null : ByteBuffer.wrap(end.getBytes(UTF_8)));
             ((StorageSession) session).stream(records);
         } catch (IOException e) {
             log.error("Entities sending exception", e);
