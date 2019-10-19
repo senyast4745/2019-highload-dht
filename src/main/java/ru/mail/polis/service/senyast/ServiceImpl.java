@@ -121,13 +121,13 @@ public class ServiceImpl extends HttpServer implements Service {
     @Path("/v0/entities")
     public void entities(final Request request, final HttpSession session, @Param("start") final String start,
                          @Param("end") final String end) {
-        String endOfBuffer = null;
+        String endOfBuffer = end;
         if (start == null || start.isEmpty()) {
             sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
             return;
         }
-        if (!(end != null && end.isEmpty())) {
-            endOfBuffer = end;
+        if (end != null && end.isEmpty()) {
+            endOfBuffer = null;
         }
 
         try {
