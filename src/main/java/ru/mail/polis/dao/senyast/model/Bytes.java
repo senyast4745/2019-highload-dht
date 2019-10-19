@@ -1,5 +1,7 @@
 package ru.mail.polis.dao.senyast.model;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.nio.ByteBuffer;
 
 public final class Bytes {
@@ -14,5 +16,12 @@ public final class Bytes {
     public static ByteBuffer fromLong(final long value) {
         final ByteBuffer result = ByteBuffer.allocate(Long.BYTES);
         return result.putLong(value).rewind();
+    }
+
+    public static byte[] toArray(@NotNull final ByteBuffer buffer) {
+        final ByteBuffer duplicate = buffer.duplicate();
+        final byte[] array = new byte[duplicate.remaining()];
+        duplicate.get(array);
+        return array;
     }
 }

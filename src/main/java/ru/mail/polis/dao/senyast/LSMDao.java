@@ -1,9 +1,9 @@
 package ru.mail.polis.dao.senyast;
 
 import com.google.common.collect.Iterators;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.Iters;
@@ -38,13 +38,13 @@ public class LSMDao implements DAO {
 
     private static final int TABLES_LIMIT = 10;
 
+    private final Logger log = LoggerFactory.getLogger(LSMDao.class);
+
 //    private ExecutorService executor;
 
     private Thread flusherThread;
 
-//    private int gen = 0;
 
-    private Log log = LogFactory.getLog(this.getClass());
 
     private AtomicInteger generationToCompact = new AtomicInteger(0);
 
@@ -76,7 +76,7 @@ public class LSMDao implements DAO {
                             }
                             fileTables.put(currGen, new FileTable(path.toFile(), currGen));
                         } catch (IOException e) {
-                            e.printStackTrace();
+                            log.error("Exception in find max generation", e);
                         }
                     });
         }
@@ -224,7 +224,7 @@ public class LSMDao implements DAO {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (IOException e) {
-                    log.error("Error while flushing {} in generation " + tableToFlush.getGeneration(), e);
+                    log.error("Error while flushing in generation " + tableToFlush.getGeneration(), e);
                 }
 
             }

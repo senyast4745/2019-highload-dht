@@ -16,6 +16,7 @@
 
 package ru.mail.polis.dao;
 
+import com.google.common.base.Splitter;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,8 +26,10 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.NoSuchElementException;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Simple console client to {@link DAO}.
@@ -44,14 +47,14 @@ public final class Client {
 
     @NotNull
     private static ByteBuffer from(@NotNull final String value) {
-        return ByteBuffer.wrap(value.getBytes(StandardCharsets.UTF_8));
+        return ByteBuffer.wrap(value.getBytes(UTF_8));
     }
 
     @NotNull
     private static String from(@NotNull final ByteBuffer value) {
         final byte[] bytes = new byte[value.remaining()];
         value.get(bytes);
-        return new String(bytes, StandardCharsets.UTF_8);
+        return new String(bytes, UTF_8);
     }
 
     public static void main(final String[] args) throws IOException {
@@ -74,16 +77,17 @@ public final class Client {
                         + "\n\tremove <key>"
                         + "\n\tquit");
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, UTF_8))) {
             String line;
             while (!"quit".equals(line = reader.readLine())) {
                 if (line.isEmpty()) {
                     continue;
                 }
 
-                final String[] tokens = line.split(" ");
-                final String cmd = tokens[0];
-                final ByteBuffer key = ByteBuffer.wrap(tokens[1].getBytes(StandardCharsets.UTF_8));
+                //noinspection UnstableApiUsage
+                final List<String> tokens = Splitter.on(' ').splitToList(line);
+                final String cmd = tokens.get(0);
+                final ByteBuffer key = ByteBuffer.wrap(tokens.get(1).getBytes(UTF_8));
 
                 switch (cmd) {
                     case "get":
@@ -97,7 +101,7 @@ public final class Client {
                         break;
 
                     case "put":
-                        dao.upsert(key, from(tokens[2]));
+                        dao.upsert(key, from(tokens.get(2)));
                         break;
 
                     case "remove":

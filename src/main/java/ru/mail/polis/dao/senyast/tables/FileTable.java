@@ -5,7 +5,6 @@ import ru.mail.polis.dao.senyast.model.Bytes;
 import ru.mail.polis.dao.senyast.model.Cell;
 import ru.mail.polis.dao.senyast.model.Value;
 
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -179,7 +178,7 @@ public class FileTable implements Table {
         final int keySize = cells.getInt((int) offset);
         offset += Integer.BYTES;
         final ByteBuffer key = cells.duplicate();
-        key.position((int) (offset));
+        key.position((int) offset);
         key.limit(key.position() + keySize);
         offset += keySize;
 

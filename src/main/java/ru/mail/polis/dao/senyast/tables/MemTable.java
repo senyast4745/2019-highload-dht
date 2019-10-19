@@ -5,12 +5,10 @@ import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.senyast.model.Cell;
 import ru.mail.polis.dao.senyast.model.Value;
 
-
 import javax.annotation.concurrent.ThreadSafe;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NavigableMap;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -20,7 +18,7 @@ public class MemTable implements Table {
     private AtomicLong tableSize = new AtomicLong();
     private final long generation;
 
-    public MemTable(final long generation) {
+    MemTable(final long generation) {
         this.generation = generation;
         this.map = new ConcurrentSkipListMap<>();
     }
@@ -31,6 +29,7 @@ public class MemTable implements Table {
      * @param from key to find data
      * @return data iterator
      */
+    @Override
     public final Iterator<Cell> iterator(@NotNull final ByteBuffer from) {
         return Iterators.transform(
                 map.tailMap(from).entrySet().iterator(),
