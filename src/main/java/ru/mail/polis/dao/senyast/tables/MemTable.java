@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @ThreadSafe
 public class MemTable implements Table {
     private final NavigableMap<ByteBuffer, Value> map;
-    private AtomicLong tableSize = new AtomicLong();
+    private final AtomicLong tableSize = new AtomicLong();
     private final long generation;
 
     MemTable(final long generation) {

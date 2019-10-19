@@ -42,7 +42,7 @@ public class LSMDao implements DAO {
 
     private final Thread flusherThread;
 
-    private AtomicInteger generationToCompact = new AtomicInteger(0);
+    private final AtomicInteger generationToCompact = new AtomicInteger(0);
 
     /**
      * Create persistence DAO.
@@ -65,7 +65,7 @@ public class LSMDao implements DAO {
             })
                     .forEach(path -> {
                         try {
-                            int currGen = Generation.fromPath(path);
+                            final int currGen = Generation.fromPath(path);
                             if (currGen >= generation.get()) {
                                 generation.set(currGen);
                             }
@@ -133,7 +133,7 @@ public class LSMDao implements DAO {
     }
 
     private void flush(final TableToFlush tableToFlush) throws IOException {
-        Iterator<Cell> memIterator = tableToFlush.getTable().iterator(ByteBuffer.allocate(0));
+        final Iterator<Cell> memIterator = tableToFlush.getTable().iterator(ByteBuffer.allocate(0));
 
         if (memIterator.hasNext()) {
             final int generation = tableToFlush.getGeneration();
@@ -147,7 +147,7 @@ public class LSMDao implements DAO {
             fileTables.put(generation, new FileTable(dest, generation));
             memTablePool.flushed(generation);
 
-            System.out.println("Flushing generation " + tableToFlush.getGeneration());
+            log.info("Flushing generation " + tableToFlush.getGeneration());
         }
 
         if (fileTables.size() > TABLES_LIMIT) {
@@ -158,8 +158,8 @@ public class LSMDao implements DAO {
 
     @Override
     public void compact() throws IOException {
-        int generation = memTablePool.getLastFlushedGeneration().get();
-        System.out.println("Compact generation " + generation + " by thread " + Thread.currentThread().getName());
+        final int generation = memTablePool.getLastFlushedGeneration().get();
+        log.info("Compact generation " + generation + " by thread " + Thread.currentThread().getName());
 
         final String tempFilename = PREFIX_FILE + generation + SUFFIX_TMP;
         final String filename = PREFIX_FILE + generation + SUFFIX_DAT;
@@ -216,7 +216,7 @@ public class LSMDao implements DAO {
 
             }
             if (!isInterrupted()) {
-                System.out.println("Dead after poison");
+                log.info("Dead after poison");
             }
         }
     }

@@ -13,13 +13,13 @@ public class TableToFlush {
      * @param generation   generation of table to flush
      * @param isPoisonPeel check is table last table to flush
      */
-    public TableToFlush(Table table, int generation, boolean isPoisonPeel) {
+    public TableToFlush(final Table table, final int generation, final boolean isPoisonPeel) {
         this.table = table;
         this.generation = generation;
         this.isPoisonPeel = isPoisonPeel;
     }
 
-    public TableToFlush(Table table, int generation) {
+    public TableToFlush(final Table table, final int generation) {
         this(table, generation, false);
     }
 

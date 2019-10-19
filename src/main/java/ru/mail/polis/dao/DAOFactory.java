@@ -53,8 +53,7 @@ public final class DAOFactory {
         if (!data.isDirectory()) {
             throw new IllegalArgumentException("Path is not a directory: " + data);
         }
-        int cores = Runtime.getRuntime().availableProcessors();
-        System.out.println("Cores " + cores);
+        final int cores = Runtime.getRuntime().availableProcessors();
         return new LSMDao(data, MAX_HEAP / 60, cores);
     }
 }

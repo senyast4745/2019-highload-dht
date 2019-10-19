@@ -27,18 +27,18 @@ public class MemTablePool implements Table, Closeable {
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     private volatile MemTable current;
-    private NavigableMap<Integer, MemTable> pendingFlush;
-    private BlockingQueue<TableToFlush> flushQueue;
+    private final NavigableMap<Integer, MemTable> pendingFlush;
+    private final BlockingQueue<TableToFlush> flushQueue;
 
     private final long memFlushThreshHold;
 
     private int generation;
 
-    private AtomicInteger lastFlushedGeneration = new AtomicInteger(0);
+    private final AtomicInteger lastFlushedGeneration = new AtomicInteger(0);
 
-    private AtomicBoolean stop = new AtomicBoolean(false);
+    private final AtomicBoolean stop = new AtomicBoolean(false);
 
-    private Logger log = LoggerFactory.getLogger(MemTablePool.class);
+    private final Logger log = LoggerFactory.getLogger(MemTablePool.class);
 
     /**
      * Class to multithreading flush.
@@ -111,7 +111,7 @@ public class MemTablePool implements Table, Closeable {
         return flushQueue.take();
     }
 
-    private void updateCurrentFlushGeneration(int generation) {
+    private void updateCurrentFlushGeneration(final int generation) {
         if (generation > lastFlushedGeneration.get()) {
             lastFlushedGeneration.set(generation);
         }

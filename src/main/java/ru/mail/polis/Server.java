@@ -16,13 +16,15 @@
 
 package ru.mail.polis;
 
-import java.io.File;
-import java.io.IOException;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.DAOFactory;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.ServiceFactory;
+
+import java.io.File;
+import java.io.IOException;
 
 /**
  * Starts storage and waits for shutdown.
@@ -32,6 +34,7 @@ import ru.mail.polis.service.ServiceFactory;
 public final class Server {
     private static final int PORT = 8080;
 
+    private static final Logger log = LoggerFactory.getLogger(Server.class);
     private Server() {
         // Not instantiable
     }
@@ -39,7 +42,7 @@ public final class Server {
     public static void main(final String[] args) throws IOException {
         // Temporary storage in the file system
         final File data = Files.createTempDirectory();
-        System.out.println("TMP DIR " + data.getAbsolutePath());
+        log.info("TMP DIR " + data.getAbsolutePath());
 
         // Start the service
         final DAO dao = DAOFactory.create(data);
