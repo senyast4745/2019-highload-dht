@@ -40,21 +40,16 @@ public class LSMDao implements DAO {
 
     private final Logger log = LoggerFactory.getLogger(LSMDao.class);
 
-//    private ExecutorService executor;
-
-    private Thread flusherThread;
-
-
+    private final Thread flusherThread;
 
     private AtomicInteger generationToCompact = new AtomicInteger(0);
 
-
     /**
      * Create persistence DAO.
-     * <p>
-     * //     * @param file       database location
-     * //     * @param flushLimit when we should write to disk
      *
+     * @param file       database location
+     * @param flushLimit when we should write to disk
+     * @param queueCapacity flush queue capacity
      * @throws IOException if I/O error
      */
 
@@ -85,10 +80,6 @@ public class LSMDao implements DAO {
 
         flusherThread = new FlusherThread();
         flusherThread.start();
-//        executor = Executors.newFixedThreadPool(threadCount);
-//        for (int i = 0; i < threadCount; i++) {
-//            executor.execute(new FlusherThread());
-//        }
     }
 
     @NotNull
@@ -191,20 +182,16 @@ public class LSMDao implements DAO {
         memTablePool.flushed(generation);
     }
 
-
     @Override
     public void close() {
         memTablePool.close();
         try {
             flusherThread.join();
-//            executor.awaitTermination(5, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-//        executor.shutdownNow();
         flusherThread.interrupt();
     }
-
 
     private class FlusherThread extends Thread {
 

@@ -10,7 +10,7 @@ public class Cell {
 
     private final ByteBuffer key;
     private final Value value;
-    private final long  generation;
+    private final long generation;
 
     /**
      * Creating new Cell with data.

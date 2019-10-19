@@ -27,9 +27,11 @@ public class ServiceImpl extends HttpServer implements Service {
     private static Logger log = LoggerFactory.getLogger(ServiceImpl.class);
 
     /**
-     * @param port     HttpServer Port
-     * @param dao      Implementation of DAO
-     * @param executor Thread executor
+     * Constructor to my Impl of Service.
+     *
+     * @param port     httpServer port
+     * @param dao      implementation of DAO
+     * @param executor thread executor
      * @throws IOException if server can not start
      */
     public ServiceImpl(final int port, @NotNull final DAO dao, @NotNull final Executor executor) throws IOException {
@@ -39,7 +41,7 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     private static HttpServerConfig getServerConfig(final int port) {
-        AcceptorConfig acceptor = new AcceptorConfig();
+        final AcceptorConfig acceptor = new AcceptorConfig();
         acceptor.port = port;
         acceptor.reusePort = true;
         acceptor.deferAccept = true;
@@ -52,9 +54,11 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     /**
-     * @param request Request to Server
-     * @param id      Key
-     * @param session Http Session to response
+     * Method to map to "/v0/entity" URL.
+     *
+     * @param request request to Server
+     * @param id      key
+     * @param session http Session of request
      */
     @SuppressWarnings("unused")
     @Path("/v0/entity")
@@ -87,14 +91,29 @@ public class ServiceImpl extends HttpServer implements Service {
         }
     }
 
+    /**
+     * Method to check Server status.
+     *
+     * @param session http Session of request
+     */
     @SuppressWarnings("unused")
     @Path("/v0/status")
     public void status(final HttpSession session) {
         sendResponse(session, new Response(Response.OK, Response.EMPTY));
     }
 
+
+    /**
+     * Method to get more key - value pair.
+     *
+     * @param request request to Server
+     * @param session http Session of request
+     * @param start   request parameter "start" - start of Iterator - required
+     * @param end     request parameter "end" - end of Iterator - non required
+     */
+    @SuppressWarnings("unused")
     @Path("/v0/entities")
-    public void entities(final Request request, HttpSession session, @Param("start") String start,
+    public void entities(final Request request, final HttpSession session, @Param("start") final String start,
                          @Param("end") String end) {
         if (start == null || start.isEmpty()) {
             sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
@@ -120,14 +139,14 @@ public class ServiceImpl extends HttpServer implements Service {
 
     @Override
     public void handleDefault(final Request request, final HttpSession session) throws IOException {
-        Response response = new Response(Response.BAD_REQUEST, Response.EMPTY);
+        final Response response = new Response(Response.BAD_REQUEST, Response.EMPTY);
         session.sendResponse(response);
     }
 
     private Response getMethod(final ByteBuffer key) throws IOException {
         final ByteBuffer value = dao.get(key);
         final ByteBuffer duplicate = value.duplicate();
-        byte[] body = new byte[duplicate.remaining()];
+        final byte[] body = new byte[duplicate.remaining()];
         duplicate.get(body);
         return new Response(Response.OK, body);
     }

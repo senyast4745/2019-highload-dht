@@ -1,7 +1,5 @@
 package ru.mail.polis.dao.senyast.model;
 
-
-
 import ru.mail.polis.dao.senyast.LSMDao;
 
 import java.nio.file.Path;

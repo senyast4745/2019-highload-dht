@@ -2,6 +2,8 @@ package ru.mail.polis.dao.senyast.tables;
 
 import com.google.common.collect.Iterators;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.Iters;
 import ru.mail.polis.dao.senyast.model.Cell;
 
@@ -36,6 +38,15 @@ public class MemTablePool implements Table, Closeable {
 
     private AtomicBoolean stop = new AtomicBoolean(false);
 
+    private Logger log = LoggerFactory.getLogger(MemTablePool.class);
+
+    /**
+     * Class to multithreading flush.
+     *
+     * @param memFlushThreshHold threshold at which we flush data to disk
+     * @param startGeneration    start generation
+     * @param queueCapacity      flush queue capacity
+     */
     public MemTablePool(final long memFlushThreshHold, final int startGeneration, final int queueCapacity) {
         this.memFlushThreshHold = memFlushThreshHold;
         this.generation = startGeneration;
@@ -57,7 +68,7 @@ public class MemTablePool implements Table, Closeable {
     }
 
     @Override
-    public Iterator<Cell> iterator(@NotNull ByteBuffer from) throws IOException {
+    public Iterator<Cell> iterator(@NotNull final ByteBuffer from) throws IOException {
 
         final List<Iterator<Cell>> list;
 
@@ -79,7 +90,7 @@ public class MemTablePool implements Table, Closeable {
     }
 
     @Override
-    public void upsert(@NotNull ByteBuffer key, @NotNull ByteBuffer value) {
+    public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) {
         if (stop.get()) {
             throw new IllegalStateException("Database closed");
         }
@@ -88,7 +99,7 @@ public class MemTablePool implements Table, Closeable {
     }
 
     @Override
-    public void remove(@NotNull ByteBuffer key) {
+    public void remove(@NotNull final ByteBuffer key) {
         if (stop.get()) {
             throw new IllegalStateException("Database closed");
         }
@@ -106,6 +117,11 @@ public class MemTablePool implements Table, Closeable {
         }
     }
 
+    /**
+     * Callback method to inform about flush bu "Flusher thread".
+     *
+     * @param generation number of flushed generation
+     */
     public void flushed(final int generation) {
         lock.writeLock().lock();
         try {
@@ -140,7 +156,7 @@ public class MemTablePool implements Table, Closeable {
 
                     flushQueue.put(toFlush);
                 } catch (InterruptedException e) {
-                    System.out.println("Thread interrupted");
+                    log.info("Thread interrupted");
                     Thread.currentThread().interrupt();
                 }
             }
@@ -150,7 +166,7 @@ public class MemTablePool implements Table, Closeable {
     @Override
     public void close() {
         if (!stop.compareAndSet(false, true)) {
-            System.out.println("Stopped");
+            log.info("Stopped");
             return;
         }
         final TableToFlush toFlush;
