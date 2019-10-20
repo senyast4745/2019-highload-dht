@@ -76,24 +76,19 @@ public class ServiceImpl extends HttpServer implements Service {
             return;
         }
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
-        try {
-            switch (request.getMethod()) {
-                case Request.METHOD_GET:
-                    executeAsync(session, () -> getMethod(key));
-                    break;
-                case Request.METHOD_PUT:
-                    executeAsync(session, () -> putMethod(key, request));
-                    break;
-                case Request.METHOD_DELETE:
-                    executeAsync(session, () -> deleteMethod(key));
-                    break;
-                default:
-                    sendResponse(session, new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
-                    break;
-            }
-        } catch (Exception e) {
-            log.error("Error in main controller", e);
-            sendResponse(session, new Response(Response.INTERNAL_ERROR, Response.EMPTY));
+        switch (request.getMethod()) {
+            case Request.METHOD_GET:
+                executeAsync(session, () -> getMethod(key));
+                break;
+            case Request.METHOD_PUT:
+                executeAsync(session, () -> putMethod(key, request));
+                break;
+            case Request.METHOD_DELETE:
+                executeAsync(session, () -> deleteMethod(key));
+                break;
+            default:
+                sendResponse(session, new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
+                break;
         }
     }
 
