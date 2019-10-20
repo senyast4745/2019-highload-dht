@@ -85,14 +85,14 @@ public class ServiceImpl extends HttpServer implements Service {
                     executeAsync(session, () -> putMethod(key, request));
                     break;
                 case Request.METHOD_DELETE:
-                    dao.remove(key);
-                    executeAsync(session, () -> new Response(Response.ACCEPTED, Response.EMPTY));
+                    executeAsync(session, () -> deleteMethod(key));
                     break;
                 default:
-                    executeAsync(session, () -> new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
+                    sendResponse(session, new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
                     break;
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
+            log.error("Error in main controller", e);
             sendResponse(session, new Response(Response.INTERNAL_ERROR, Response.EMPTY));
         }
     }
@@ -154,6 +154,11 @@ public class ServiceImpl extends HttpServer implements Service {
         return new Response(Response.OK, body);
     }
 
+    private Response deleteMethod(final ByteBuffer key) throws IOException {
+        dao.remove(key);
+        return new Response(Response.OK, Response.EMPTY);
+    }
+
     private Response putMethod(final ByteBuffer key, final Request request) throws IOException {
         dao.upsert(key, ByteBuffer.wrap(request.getBody()));
         return new Response(Response.CREATED, Response.EMPTY);
@@ -176,6 +181,7 @@ public class ServiceImpl extends HttpServer implements Service {
         try {
             session.sendResponse(response);
         } catch (IOException e) {
+            log.error("IOException in sending response", e);
             try {
                 session.sendError(Response.INTERNAL_ERROR, "Error while send response");
             } catch (IOException ex) {

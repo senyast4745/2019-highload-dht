@@ -181,7 +181,6 @@ class PersistenceTest extends TestBase {
         try (DAO dao = DAOFactory.create(data)) {
             for (final ByteBuffer key : keys) {
                 assertEquals(join(key, suffix), dao.get(key));
-
             }
         }
     }
