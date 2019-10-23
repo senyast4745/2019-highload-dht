@@ -23,10 +23,12 @@ plugins:
         - "java-unnecessary"
         - "java-unusedcode"
     checks:
+      AvoidInstantiatingObjectsInLoops:
+        enabled: false
       AvoidSynchronizedAtMethodLevel:
         enabled: false
       AvoidThrowingRawExceptionTypes:
-        enabled: false
+        enabled: false 
       DataClass:
         enabled: false
   sonar-java:
@@ -37,6 +39,9 @@ plugins:
       squid:S00112:
         enabled: false
 checks:
+  argument-count:
+    config:
+      threshold: 5 # No more than 5 arguments
   method-lines:
     config:
       threshold: 80 # No more than 2 screens
@@ -53,4 +58,5 @@ checks:
     config:
       threshold: 10 # Have pattern-matching-like code
 exclude_patterns:
-  - "**/*.svg"
+- "**/*.svg"
+- "src/test/"
