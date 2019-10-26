@@ -27,7 +27,6 @@ import ru.mail.polis.service.senyast.Node;
 import ru.mail.polis.service.senyast.ServiceImpl;
 import ru.mail.polis.service.senyast.Topology;
 
-import java.io.IOException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 

@@ -1,7 +1,16 @@
 package ru.mail.polis.service.senyast;
 
 import com.google.common.base.Charsets;
-import one.nio.http.*;
+
+import one.nio.http.HttpClient;
+import one.nio.http.HttpException;
+import one.nio.http.HttpServer;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.HttpSession;
+import one.nio.http.Param;
+import one.nio.http.Path;
+import one.nio.http.Request;
+import one.nio.http.Response;
 import one.nio.net.ConnectionString;
 import one.nio.net.Socket;
 import one.nio.pool.PoolException;
@@ -15,7 +24,11 @@ import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.Executor;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -38,7 +51,8 @@ public class ServiceImpl extends HttpServer implements Service {
      * @param executor thread executor
      * @throws IOException if server can not start
      */
-    public ServiceImpl(final int port, @NotNull final DAO dao, @NotNull final Executor executor, Topology<String> topology) throws IOException {
+    public ServiceImpl(final int port, @NotNull final DAO dao, @NotNull final Executor executor,
+                       final Topology<String> topology) throws IOException {
         super(getServerConfig(port));
         this.dao = dao;
         this.executors = executor;
@@ -173,7 +187,7 @@ public class ServiceImpl extends HttpServer implements Service {
         return new Response(Response.CREATED, Response.EMPTY);
     }
 
-    private Response proxy(String workerNode, Request request) {
+    private Response proxy(final String workerNode, final Request request) {
         try {
             return pool.get(workerNode).invoke(request);
         } catch (InterruptedException | PoolException | HttpException | IOException e) {

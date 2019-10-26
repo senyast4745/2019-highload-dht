@@ -13,6 +13,12 @@ public class Node implements Topology<String> {
     @NotNull
     private final String name;
 
+    /**
+     * Sharding data node.
+     *
+     * @param set  set of sharding nodes
+     * @param name current node name
+     */
     public Node(@NotNull final Set<String> set, @NotNull final String name) {
         this.name = name;
 
