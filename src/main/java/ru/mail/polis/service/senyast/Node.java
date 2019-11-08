@@ -1,9 +1,12 @@
 package ru.mail.polis.service.senyast;
 
 import org.jetbrains.annotations.NotNull;
+import ru.mail.polis.dao.senyast.model.Bytes;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.PriorityQueue;
 import java.util.Set;
 
 public class Node implements Topology<String> {
@@ -47,5 +50,23 @@ public class Node implements Topology<String> {
     @Override
     public int size() {
         return nodes.length;
+    }
+
+    @Override
+    public Set<String> primaryFor(ByteBuffer key, ReplicationFactor replicationFactor) {
+        if (replicationFactor.getFrom() > nodes.length) {
+            throw new IllegalArgumentException();
+        }
+
+        final int hash = key.hashCode();
+
+        final int index = (hash & Integer.MAX_VALUE) % nodes.length;
+
+        return Set.of(Arrays.copyOfRange(nodes, index, index + replicationFactor.getFrom()));
+    }
+
+    @Override
+    public String me() {
+        return name;
     }
 }

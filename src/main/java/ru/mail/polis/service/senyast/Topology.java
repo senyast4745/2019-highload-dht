@@ -14,4 +14,8 @@ public interface Topology<T> {
     Set<T> all();
 
     int size();
+
+    Set<T> primaryFor(ByteBuffer key, ReplicationFactor replicationFactor);
+
+    T me();
 }
