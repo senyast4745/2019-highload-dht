@@ -186,7 +186,7 @@ public class FileTable implements Table {
         offset += Long.BYTES;
 
         if (timeStamp < 0) {
-            return new Cell(key.slice(), new Value(null, -timeStamp, true), generation);
+            return new Cell(key.slice(), Value.tombstone(-timeStamp), generation);
         } else {
             final int valueSize = cells.getInt((int) offset);
             offset += Integer.BYTES;
@@ -195,7 +195,7 @@ public class FileTable implements Table {
             value.limit(value.position() + valueSize)
                     .position((int) offset)
                     .limit((int) (offset + valueSize));
-            return new Cell(key.slice(), new Value(value.slice(), timeStamp, false), generation);
+            return new Cell(key.slice(), Value.of(timeStamp, value.slice()), generation);
         }
     }
 

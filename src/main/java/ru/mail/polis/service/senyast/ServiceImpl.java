@@ -20,6 +20,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.DAO;
+import ru.mail.polis.dao.NoSuchElementLite;
+import ru.mail.polis.dao.senyast.model.Bytes;
 import ru.mail.polis.dao.senyast.model.Value;
 import ru.mail.polis.service.Service;
 
@@ -110,7 +112,7 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     private Value responseToValue(Response response) {
-        final var ts = response.getHeader("TIME_STAMP: ");
+        final String ts = response.getHeader("TIME_STAMP: ");
         return getValue(response, ts);
     }
 
@@ -255,11 +257,16 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     private Response getMethod(final ByteBuffer key) throws IOException {
-        final ByteBuffer value = dao.get(key);
-        final ByteBuffer duplicate = value.duplicate();
-        final byte[] body = new byte[duplicate.remaining()];
-        duplicate.get(body);
-        return new Response(Response.OK, body);
+        final Value value;
+        try {
+            value = dao.getValue(key);
+        } catch (NoSuchElementLite e) {
+            return new Response(Response.NOT_FOUND, Response.EMPTY);
+        }
+        if (value == null) {
+            return new Response(Response.NOT_FOUND, Response.EMPTY);
+        }
+        return valueToResponse(value);
     }
 
     private Response deleteMethod(final ByteBuffer key) throws IOException {
@@ -282,6 +289,19 @@ public class ServiceImpl extends HttpServer implements Service {
                 log.error("Execute exception", e);
             }
         });
+    }
+
+    private Response valueToResponse(final Value value) {
+        if (value.state() == Value.State.PRESENT) {
+            final var response = Response.ok(Bytes.toArray(value.getData()));
+            response.addHeader("TIME_STAMP: " + value.getTimestamp());
+            return response;
+        } else if (value.state() == Value.State.REMOVED) {
+            final var response = new Response(Response.NOT_FOUND, Response.EMPTY);
+            response.addHeader("TIME_STAMP: " + value.getTimestamp());
+            return response;
+        }
+        return new Response(Response.NOT_FOUND, Response.EMPTY);
     }
 
     private static void sendResponse(@NotNull final HttpSession session,
@@ -309,7 +329,7 @@ public class ServiceImpl extends HttpServer implements Service {
         }
     }
 
-    static boolean isProxied(@NotNull final Request request) {
+    private static boolean isProxied(@NotNull final Request request) {
         return request.getHeader(HEADER_PROXY) != null;
     }
 

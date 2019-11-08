@@ -9,6 +9,7 @@ import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.Iters;
 import ru.mail.polis.dao.senyast.model.Cell;
 import ru.mail.polis.dao.senyast.model.Generation;
+import ru.mail.polis.dao.senyast.model.Value;
 import ru.mail.polis.dao.senyast.tables.FileTable;
 import ru.mail.polis.dao.senyast.tables.MemTablePool;
 import ru.mail.polis.dao.senyast.tables.TableToFlush;
@@ -105,14 +106,7 @@ public class LSMDao implements DAO {
     }
 
     private Iterator<Cell> aliveCells(@NotNull final ByteBuffer from) throws IOException {
-        final List<Iterator<Cell>> iterators = new ArrayList<>();
-        iterators.add(fileTablesIterator(from));
-        iterators.add(memTablePool.iterator(from));
-        //noinspection UnstableApiUsage
-        final Iterator<Cell> cellIterator = Iters.collapseEquals(
-                Iterators.mergeSorted(iterators, Cell.COMPARATOR),
-                Cell::getKey
-        );
+        Iterator<Cell> cellIterator = utilIterator(from);
 
         return Iterators.filter(
                 cellIterator, cell -> {
@@ -182,6 +176,34 @@ public class LSMDao implements DAO {
         memTablePool.flushed(generation);
     }
 
+
+    @Override
+    public Value getValue(final ByteBuffer from) throws IOException {
+        utilIterator(from);
+        Iterator<Cell> cellIterator = utilIterator(from);
+
+        if (!cellIterator.hasNext()) {
+            return Value.absent();
+        }
+
+        final Cell next = cellIterator.next();
+        if (next.getKey().equals(from)) {
+            return next.getValue();
+        }
+        return Value.absent();
+    }
+
+    private Iterator<Cell> utilIterator(ByteBuffer from) throws IOException {
+        final List<Iterator<Cell>> iterators = new ArrayList<>();
+        iterators.add(fileTablesIterator(from));
+        iterators.add(memTablePool.iterator(from));
+
+        return Iters.collapseEquals(
+                Iterators.mergeSorted(iterators, Cell.COMPARATOR),
+                Cell::getKey
+        );
+    }
+
     @Override
     public void close() {
         memTablePool.close();
@@ -220,4 +242,6 @@ public class LSMDao implements DAO {
             }
         }
     }
+
+
 }
